@@ -64,7 +64,7 @@ jobs:
           npx tsx prisma/seed.ts
 
       - name: Chạy bộ kiểm thử tự động (Vitest)
-        run: npm test
+        run: npx vitest run --reporter=verbose
 
   # ==============================================================================
   # 3. BUILD ĐÓNG GÓI SẢN PHẨM (BUILD STANDALONE)
