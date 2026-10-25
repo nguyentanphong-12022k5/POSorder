@@ -8,6 +8,31 @@ import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 
 describe("Lớp Bảo Mật Hệ Thống - Auth, Rate Limit, Anti-IDOR", () => {
+  beforeAll(async () => {
+    await prisma.profile.upsert({
+      where: { email: "admin@pos.vn" },
+      update: {},
+      create: {
+        email: "admin@pos.vn",
+        password: "admin123",
+        role: "admin",
+        name: "Chủ quán Admin",
+        shopId: "shop_default",
+      },
+    });
+    await prisma.profile.upsert({
+      where: { email: "staff@pos.vn" },
+      update: {},
+      create: {
+        email: "staff@pos.vn",
+        password: "staff123",
+        role: "staff",
+        name: "Thu ngân 1",
+        shopId: "shop_default",
+      },
+    });
+  });
+
   afterAll(async () => {
     await prisma.$disconnect();
   });

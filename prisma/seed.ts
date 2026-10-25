@@ -162,6 +162,33 @@ async function main() {
   }
 
   console.log(`✅ Đã tạo 10 sản phẩm với đầy đủ Size S/M/L và Toppings.`);
+
+  // Khởi tạo tài khoản mẫu Admin và Staff
+  await prisma.profile.upsert({
+    where: { email: "admin@pos.vn" },
+    update: {},
+    create: {
+      email: "admin@pos.vn",
+      password: "admin123",
+      role: "admin",
+      name: "Chủ quán Admin",
+      shopId: "shop_default",
+    },
+  });
+
+  await prisma.profile.upsert({
+    where: { email: "staff@pos.vn" },
+    update: {},
+    create: {
+      email: "staff@pos.vn",
+      password: "staff123",
+      role: "staff",
+      name: "Thu ngân 1",
+      shopId: "shop_default",
+    },
+  });
+  console.log("✅ Đã khởi tạo tài khoản mẫu (admin@pos.vn & staff@pos.vn).");
+
   console.log("✨ Seed hoàn tất thành công!");
 }
 
