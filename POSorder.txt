@@ -1,0 +1,363 @@
+# 🧋 Cấu trúc & Prompt xây dựng App Order Đồ Uống có in hóa đơn
+
+Dưới đây là bộ khung đầy đủ: **kiến trúc → cấu trúc thư mục → data model → luồng in → bộ prompt theo giai đoạn** để bạn đưa cho AI (Cursor, Claude Code, Copilot, v0…).
+
+---
+
+## 1. Gợi ý Tech Stack
+
+| Thành phần | Lựa chọn khuyến nghị | Ghi chú |
+|---|---|---|
+| Frontend | **Next.js 14 (App Router) + TypeScript + Tailwind + shadcn/ui** | Dễ deploy, SSR tốt |
+| State | Zustand (giỏ hàng) | Nhẹ, đơn giản |
+| Backend | Next.js API Routes / Route Handlers | Không cần server riêng |
+| Database | **Supabase (Postgres)** hoặc SQLite + Prisma | Supabase có Auth + Realtime |
+| Auth | Supabase Auth (email/password cho nhân viên) | |
+| In hóa đơn | **PDF (pdfkit/puppeteer)** + **react-to-print** | Web fallback |
+| In nhiệt (thermal) | **node-thermal-printer** (ESC/POS qua LAN/USB) | Cho quán thực tế |
+| Thanh toán | QR (VietQR) / Tiền mặt | MVP dùng tiền mặt trước |
+
+---
+
+## 2. Kiến trúc tổng thể
+
+```
+┌──────────────────────────────────────────────────┐
+│  Client (Tablet POS / Mobile)                    │
+│  - Menu, Cart, Checkout, Bill preview            │
+└───────────────┬──────────────────────────────────┘
+                │ HTTPS
+┌───────────────▼──────────────────────────────────┐
+│  Next.js API (Route Handlers)                    │
+│  /api/menu  /api/orders  /api/invoice/[id]       │
+└───────┬───────────────────────┬──────────────────┘
+        │                       │
+┌───────▼────────┐     ┌────────▼─────────┐
+│  Supabase DB   │     │  Print Service   │
+│  (Postgres)    │     │  - PDF (pdfkit)  │
+└────────────────┘     │  - ESC/POS       │
+                       └──────────────────┘
+```
+
+---
+
+## 3. Cấu trúc thư mục
+
+```
+drink-order-app/
+├─ app/
+│  ├─ (pos)/                    # giao diện bán hàng
+│  │  ├─ page.tsx               # màn hình menu + cart
+│  │  ├─ checkout/page.tsx
+│  │  └─ orders/[id]/page.tsx   # xem chi tiết đơn
+│  ├─ (admin)/
+│  │  ├─ menu/page.tsx          # CRUD món
+│  │  ├─ reports/page.tsx       # doanh thu
+│  │  └─ settings/page.tsx      # thông tin quán, máy in
+│  ├─ api/
+│  │  ├─ menu/route.ts
+│  │  ├─ orders/route.ts
+│  │  ├─ orders/[id]/route.ts
+│  │  └─ invoice/[id]/route.ts  # trả PDF
+│  └─ layout.tsx
+├─ components/
+│  ├─ pos/MenuGrid.tsx
+│  ├─ pos/CartPanel.tsx
+│  ├─ pos/ToppingPicker.tsx
+│  ├─ invoice/InvoiceTemplate.tsx
+│  └─ ui/...
+├─ lib/
+│  ├─ supabase.ts
+│  ├─ printer/
+│  │  ├─ pdf.ts                 # pdfkit
+│  │  └─ escpos.ts              # node-thermal-printer
+│  ├─ money.ts
+│  └─ store/cart.ts             # zustand
+├─ types/
+│  └─ index.ts
+├─ prisma/schema.prisma
+└─ public/
+```
+
+---
+
+## 4. Data Model (Prisma/SQL)
+
+```prisma
+model Category {
+  id       String   @id @default(cuid())
+  name     String
+  sort     Int      @default(0)
+  products Product[]
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  name       String
+  categoryId String
+  basePrice  Int                 // VND, integer
+  imageUrl   String?
+  isActive   Boolean  @default(true)
+  category   Category @relation(fields: [categoryId], references: [id])
+  variants   Variant[]
+  toppings   ToppingOnProduct[]
+  orderItems OrderItem[]
+}
+
+model Variant {                  // S / M / L
+  id        String  @id @default(cuid())
+  productId String
+  name      String               // "Size L"
+  extraPrice Int    @default(0)
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model Topping {                  // Trân châu, thạch...
+  id       String @id @default(cuid())
+  name     String
+  price    Int
+  products ToppingOnProduct[]
+}
+
+model ToppingOnProduct {
+  productId String
+  toppingId String
+  product   Product @relation(fields: [productId], references: [id])
+  topping   Topping @relation(fields: [toppingId], references: [id])
+  @@id([productId, toppingId])
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  code         String      @unique  // HD0001
+  createdAt    DateTime    @default(now())
+  status       OrderStatus @default(PAID)
+  subtotal     Int
+  discount     Int         @default(0)
+  total        Int
+  paidAmount   Int
+  changeAmount Int         @default(0)
+  paymentMethod PaymentMethod @default(CASH)
+  note         String?
+  staffId      String?
+  items        OrderItem[]
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  productId  String
+  name       String                  // snapshot
+  variantName String?
+  toppings   String                  // JSON snapshot
+  unitPrice  Int
+  quantity   Int
+  lineTotal  Int
+  note       String?
+  order      Order   @relation(fields: [orderId], references: [id])
+  product    Product @relation(fields: [productId], references: [id])
+}
+
+enum OrderStatus { PAID, CANCELLED }
+enum PaymentMethod { CASH, TRANSFER, CARD }
+```
+
+> **Quan trọng:** `OrderItem` phải **snapshot** tên món, giá, topping tại thời điểm mua — để sau này đổi menu không làm sai hóa đơn cũ.
+
+---
+
+## 5. Luồng in hóa đơn — chọn 1 trong 3
+
+| Cách | Ưu điểm | Nhược |
+|---|---|---|
+| **A. `window.print()` + CSS `@media print`** | 0 dependency, chạy trên mọi máy | Không đẹp bằng máy in nhiệt |
+| **B. PDF (pdfkit) → tải/xem** | Chuẩn hoá, lưu trữ được | Cần server render |
+| **C. ESC/POS qua `node-thermal-printer`** | Đúng chuẩn máy in bill (Xprinter, Epson TM-T82…) | Cần cấu hình IP/USB |
+
+**MVP:** làm **A + B song song**. **Production quán:** bật thêm **C**.
+
+---
+
+## 6. Bộ Prompt theo giai đoạn (copy-paste)
+
+### 🔹 Prompt 0 — Khởi tạo dự án
+
+```
+Bạn là senior full-stack engineer. Hãy scaffold một dự án "POS order đồ uống" với:
+- Next.js 14 App Router + TypeScript + Tailwind + shadcn/ui
+- Zustand cho cart state
+- Prisma + Supabase (Postgres)
+- Cấu trúc thư mục: app/(pos), app/(admin), app/api, components, lib, types
+
+Yêu cầu:
+1. Tạo package.json với đầy đủ dependencies
+2. Cấu hình tailwind, tsconfig, .env.example (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, SHOP_NAME, SHOP_ADDRESS, SHOP_PHONE)
+3. Tạo lib/money.ts: hàm formatVND(n) => "12.000 ₫" và parseVND
+4. Tạo types/index.ts chứa interface Product, Order, OrderItem, CartItem
+5. Chưa cần UI, chỉ cần skeleton chạy được `npm run dev` không lỗi.
+
+Xuất toàn bộ file dưới dạng code block có đường dẫn.
+```
+
+### 🔹 Prompt 1 — Database & Seed
+
+```
+Dựa trên schema Prisma sau, hãy:
+1. Viết file prisma/schema.prisma hoàn chỉnh (Category, Product, Variant, Topping, Order, OrderItem như spec)
+2. Viết prisma/seed.ts seed dữ liệu mẫu: 3 category (Cà phê, Trà sữa, Đá xay), 10 sản phẩm, mỗi sản phẩm có 3 size S/M/L (M +0, L +6000), 5 topping (Trân châu 5k, Thạch 5k, Pudding 7k, Kem cheese 10k, Shot espresso 8k)
+3. Viết lib/supabase.ts export 2 client: browser + server (service role)
+4. Viết script tạo mã đơn dạng HD0001 tăng dần (dùng bảng Counter hoặc max+1 trong transaction)
+
+[chèn schema ở mục 4]
+```
+
+### 🔹 Prompt 2 — Màn hình POS (menu + cart)
+
+```
+Xây dựng trang app/(pos)/page.tsx — màn hình bán hàng dạng 2 cột (desktop) / tab (mobile):
+
+CỘT TRÁI — Menu:
+- Fetch /api/menu (trả về categories có products + variants + toppings)
+- Hiển thị category tabs ngang, grid product card (ảnh, tên, giá từ, badge nếu hết hàng)
+- Click product → mở Dialog chọn: Variant (radio S/M/L), Toppings (checkbox), Note (textarea), Quantity (+/-), hiển thị tổng tiền realtime → nút "Thêm vào giỏ"
+
+CỘT PHẢI — Cart:
+- Zustand store: items[], addItem, removeItem, updateQty, clear
+- Hiển thị từng dòng: tên + variant + topping, đơn giá, số lượng, thành tiền, nút xoá
+- Bottom: tạm tính, nút "Thanh toán" (disabled nếu rỗng)
+- Nút "Xoá giỏ" có confirm
+
+Yêu cầu:
+- TypeScript strict, không dùng any
+- Responsive: mobile hiển thị cart dạng bottom sheet
+- Sử dụng shadcn/ui: Dialog, Button, Input, Checkbox, RadioGroup, Sheet
+- Tiền hiển thị bằng formatVND từ lib/money
+- Toast khi thêm/xoá (sonner)
+
+Xuất code đầy đủ từng file.
+```
+
+### 🔹 Prompt 3 — Checkout & tạo đơn
+
+```
+Xây dựng app/(pos)/checkout/page.tsx và API POST /api/orders:
+
+UI Checkout:
+- Danh sách item (readonly), tổng tiền
+- Nhập giảm giá (VNĐ hoặc %)
+- Chọn phương thức: Tiền mặt / Chuyển khoản
+- Nếu tiền mặt: nhập "Khách đưa" → tự tính "Tiền thối" (không cho < tổng)
+- Nút "Xác nhận & In bill"
+
+API POST /api/orders:
+Input: { items, discount, paymentMethod, paidAmount, note }
+Xử lý:
+1. Mở transaction Prisma
+2. Sinh mã code HDxxxx (dùng script ở Prompt 1)
+3. Snapshot tên/giá/top của từng item (không join lúc đọc lại)
+4. Tính subtotal, total = subtotal - discount, changeAmount
+5. Lưu Order + OrderItem
+6. Trả về order đầy đủ
+
+Sau khi tạo thành công: clear cart, redirect tới /orders/[id] kèm query ?print=1
+Xử lý lỗi rõ ràng, trả status 400/500 kèm message.
+```
+
+### 🔹 Prompt 4 — Trang xem hóa đơn & in PDF
+
+```
+Xây dựng:
+1. components/invoice/InvoiceTemplate.tsx — component thuần hiển thị hóa đơn khổ 80mm:
+   - Header: SHOP_NAME (env), địa chỉ, SĐT, căn giữa
+   - Tiêu đề "HÓA ĐƠN THANH TOÁN", mã đơn, giờ in (dd/MM/yyyy HH:mm)
+   - Bảng items: Tên (+ variant, + topping), SL, Đơn giá, Thành tiền
+     → dùng font monospace, cột căn phải, chiều rộng 72 ký tự (mô phỏng 80mm)
+   - Dòng: Tạm tính, Giảm giá, TỔNG CỘNG (in đậm, to)
+   - Tiền mặt / Tiền thối
+   - Footer: "Cảm ơn quý khách! Hẹn gặp lại 🌸"
+2. app/(pos)/orders/[id]/page.tsx — render InvoiceTemplate + nút "In" và "Tải PDF"
+3. app/api/invoice/[id]/route.ts — dùng pdfkit sinh PDF khổ 80mm, trả về Content-Type application/pdf
+4. Thêm CSS @media print ẩn mọi thứ trừ InvoiceTemplate, khổ giấy 80mm, margin 3mm.
+
+Style: đen trắng, không màu, không border-radius, font 12-13px.
+```
+
+### 🔹 Prompt 5 (tuỳ chọn) — In máy in nhiệt ESC/POS
+
+```
+Viết lib/printer/escpos.ts dùng thư viện node-thermal-printer:
+
+- Hàm printReceipt(order): kết nối tới máy in theo env PRINTER_INTERFACE (vd: tcp://192.168.1.100:9100), in:
+  * Init, set codepage UTF8
+  * alignCenter, bold: SHOP_NAME
+  * alignLeft: mã đơn, ngày giờ
+  * line, các item (name left, qty*price right)
+  * line, TOTAL bold lớn
+  * cut()
+- Trả lỗi nếu không kết nối được, KHÔNG throw ra UI (chỉ log + toast)
+- Route POST /api/print/[orderId] gọi hàm này
+- Nút "In nhiệt" ở trang order, chỉ hiện nếu env ENABLE_THERMAL=true
+```
+
+### 🔹 Prompt 6 — Admin & báo cáo
+
+```
+Xây dựng:
+1. app/(admin)/menu/page.tsx — CRUD Product/Variant/Topping (Table + Dialog form), soft delete qua isActive
+2. app/(admin)/reports/page.tsx:
+   - Filter ngày (hôm nay / 7 ngày / tháng)
+   - Cards: Tổng doanh thu, Số đơn, Giá trị TB/đơn, Món bán chạy nhất
+   - Bảng danh sách đơn (mã, giờ, tổng, PT thanh toán) có nút "Xem bill"
+   - API GET /api/reports?from=&to= dùng groupBy Prisma
+3. app/(admin)/settings/page.tsx: form cập nhật SHOP_NAME/ADDRESS/PHONE vào bảng Setting (nếu có) hoặc đọc env
+
+Bảo vệ: middleware check Supabase session, chỉ role=staff/admin vào được (admin).
+```
+
+---
+
+## 7. Prompt "All-in-one" (nếu muốn AI làm 1 lần)
+
+```
+Hãy xây dựng một app POS order đồ uống hoàn chỉnh bằng Next.js 14 + TypeScript + Tailwind + Prisma + Supabase.
+
+YÊU CẦU CHỨC NĂNG:
+1. POS: chọn món (size + topping + note + số lượng) → giỏ hàng → checkout (tiền mặt/chuyển khoản, giảm giá, tiền thối) → tạo đơn
+2. Sinh mã đơn HD0001 tăng dần, snapshot dữ liệu món vào OrderItem
+3. Hóa đơn: template khổ 80mm hiển thị trên web + xuất PDF qua pdfkit + nút in window.print
+4. Admin: CRUD menu, báo cáo doanh thu theo ngày
+
+TECH:
+- Next.js App Router, Route Handlers cho API
+- Prisma schema: Category, Product, Variant, Topping, Order, OrderItem (snapshot fields)
+- Zustand cho cart
+- shadcn/ui, sonner toast
+- formatVND cho tiền tệ
+
+RÀNG BUỘC:
+- TypeScript strict, không any
+- Responsive (mobile POS chạy được)
+- Code tách file rõ ràng theo cấu trúc: app/(pos), app/(admin), app/api, components, lib
+- Comment tiếng Việt ở chỗ quan trọng (tính tiền, transaction)
+
+XUẤT RA:
+1. Cây thư mục
+2. Toàn bộ file code dưới dạng block có đường dẫn
+3. Hướng dẫn setup: cài deps, tạo DB, prisma migrate, seed, chạy dev
+```
+
+---
+
+## 8. Checklist trước khi nghiệm thu
+
+- [ ] Tạo 5 đơn liên tiếp → mã `HD0001…HD0005` không trùng
+- [ ] Đổi giá món trong admin → bill **đơn cũ** vẫn giữ giá cũ (snapshot đúng)
+- [ ] In PDF khổ 80mm → không bị cắt chữ
+- [ ] `window.print()` → chỉ in phần hóa đơn, không in header/nav
+- [ ] Đơn 0đ (discount 100%) vẫn in được
+- [ ] Mobile: cart dạng bottom sheet, không che nút thanh toán
+- [ ] Máy in nhiệt: in được tiếng Việt có dấu (codepage UTF-8 / CP1258)
+
+---
+
+Bạn muốn mình **viết luôn code thật** cho phần nào trước — POS UI, API đơn hàng, hay module in PDF/ESC/POS? Nếu có sẵn loại máy in (Xprinter / Epson / máy in Bluetooth) thì cho biết để mình chỉnh prompt phần in cho khớp.

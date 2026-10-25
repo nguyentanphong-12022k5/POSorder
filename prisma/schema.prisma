@@ -1,0 +1,274 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Profile {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  password        String     // Hashed or local dev auth
+  role            String     @default("staff") // "admin" | "staff"
+  name            String     @default("Nhân viên")
+  shopId          String     @default("shop_default")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  orders          Order[]
+  cancelledOrders Order[]    @relation("OrderCancelledBy")
+  printLogs       PrintLog[]
+  shifts          Shift[]
+  auditLogs       AuditLog[]
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String
+  sort     Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id         String             @id @default(cuid())
+  name       String
+  categoryId String
+  basePrice  Int                // VND
+  imageUrl   String?
+  isActive   Boolean            @default(true)
+  outOfStock Boolean            @default(false) // Cờ hết hàng
+  category   Category           @relation(fields: [categoryId], references: [id])
+  variants   Variant[]
+  toppings   ToppingOnProduct[]
+  orderItems OrderItem[]
+  recipes    RecipeItem[]
+}
+
+model Variant {
+  id         String       @id @default(cuid())
+  productId  String
+  name       String       // Size S, Size M, Size L
+  extraPrice Int          @default(0)
+  product    Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  recipes    RecipeItem[]
+}
+
+model Topping {
+  id       String             @id @default(cuid())
+  name     String
+  price    Int
+  products ToppingOnProduct[]
+  recipes  RecipeItem[]
+}
+
+model ToppingOnProduct {
+  productId String
+  toppingId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  topping   Topping @relation(fields: [toppingId], references: [id], onDelete: Cascade)
+
+  @@id([productId, toppingId])
+}
+
+model Order {
+  id              String           @id @default(cuid())
+  code            String           @unique // HD0001
+  shopId          String           @default("shop_default") // Multi-tenant ID
+  staffId         String?          // ID nhân viên tạo đơn
+  staff           Profile?         @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now())
+  status          String           @default("PAID") // PAID, CANCELLED
+  orderType       String           @default("TAKEAWAY") // TAKEAWAY, DINE_IN
+  tableNumber     String?          // Bàn 01, Bàn 02...
+  queueNumber     Int?             // Số thứ tự lấy nước
+  subtotal        Int
+  discount        Int              @default(0)
+  total           Int
+  paidAmount      Int
+  changeAmount    Int              @default(0)
+  paymentMethod   String           @default("CASH") // CASH, TRANSFER
+  note            String?
+  cancelReason    String?          // Lý do hủy nếu status = CANCELLED
+  cancelledAt     DateTime?        // Thời gian thực hiện hủy đơn
+  cancelledBy     String?          // Tên / vai trò người hủy
+  cancelledById   String?          // ID nhân viên hủy
+  canceller       Profile?         @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  customerPhone   String?
+  customerName    String?
+  pointsEarned    Int              @default(0)
+  pointsUsed      Int              @default(0)
+  shiftId         String?
+  shift           Shift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  idempotencyKeys IdempotencyKey[]
+  printLogs       PrintLog[]
+  stockMovements  StockMovement[]
+}
+
+model PrintLog {
+  id        String   @id @default(cuid())
+  orderId   String
+  staffId   String?
+  printedAt DateTime @default(now())
+  isReprint Boolean  @default(false)
+  printNum  Int      @default(1)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  staff     Profile? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String?
+  name        String   // snapshot
+  variantName String?  // snapshot
+  toppings    String   // snapshot JSON [{id, name, price}]
+  unitPrice   Int
+  quantity    Int
+  lineTotal   Int
+  note        String?
+  itemStatus  String   @default("PENDING") // PENDING, PREPARING, COMPLETED
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model IdempotencyKey {
+  key       String   @id
+  orderId   String
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Shift {
+  id              String    @id @default(cuid())
+  shopId          String    @default("shop_default")
+  staffId         String?
+  staff           Profile?  @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  staffName       String    @default("Thu ngân 1")
+  openedAt        DateTime  @default(now())
+  closedAt        DateTime?
+  openingCash     Int       @default(0) // Tiền đầu ca (openingCash)
+  closingCash     Int?      // Tiền mặt thực tế đếm khi đóng ca (closingCash)
+  expectedCash    Int       @default(0) // Tiền mặt dự kiến = openingCash + cashRevenue
+  cashDifference  Int?      // Chênh lệch = closingCash - expectedCash
+  cashRevenue     Int       @default(0) // Doanh thu tiền mặt
+  totalTransfer   Int       @default(0) // Doanh thu chuyển khoản
+  totalOrders     Int       @default(0) // Số đơn hàng
+  status          String    @default("OPEN") // OPEN, CLOSED
+  note            String?
+  orders          Order[]
+
+  @@index([staffId])
+  @@index([openedAt])
+  @@index([status])
+}
+
+model InventoryItem {
+  id          String   @id @default(cuid())
+  name        String
+  unit        String   // g, ml, lon, ly, cái...
+  quantity    Float    @default(0)
+  minQuantity Float    @default(10)
+  costPrice   Int      @default(0)
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model RestaurantTable {
+  id        String  @id @default(cuid())
+  name      String  @unique // Bàn 01, Bàn 02...
+  status    String  @default("EMPTY") // EMPTY, OCCUPIED
+  orderId   String?
+}
+
+model Counter {
+  id    String @id @default(cuid())
+  name  String @unique @default("order_code")
+  value Int    @default(0)
+}
+
+model Setting {
+  id                String  @id @default("default")
+  shopName          String  @default("TIỆM TRÀ & CÀ PHÊ 88")
+  shopAddress       String  @default("123 Đường Nguyễn Huệ, Quận 1, TP.HCM")
+  shopPhone         String  @default("0909 123 456")
+  printerInterface  String  @default("tcp://192.168.1.100:9100")
+  enableThermal     Boolean @default(false)
+  bankCode          String  @default("MB")
+  bankAccountNumber String  @default("888899998888")
+  bankAccountName   String  @default("TIEM TRA VA CA PHE 88")
+  adminPin          String  @default("1234")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  entity    String   // "Order" | "Product" | "Category" | "Shift"
+  entityId  String   // ID của đối tượng bị thay đổi
+  action    String   // "CANCEL" | "UPDATE" | "DELETE" | "CREATE"
+  before    String?  // JSON string trước khi thay đổi
+  after     String?  // JSON string sau khi thay đổi
+  staffId   String?
+  staff     Profile? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([staffId])
+  @@index([createdAt])
+}
+
+model Ingredient {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  unit           String          // g, ml, quả, lon, gói, ly...
+  stockQty       Float           @default(0) // Số lượng tồn kho hiện tại
+  minStock       Float           @default(10) // Ngưỡng cảnh báo sắp hết
+  costPrice      Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  recipes        RecipeItem[]
+  stockMovements StockMovement[]
+}
+
+model RecipeItem {
+  id           String      @id @default(cuid())
+  ingredientId String
+  ingredient   Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  productId    String?
+  product      Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId    String?
+  variant      Variant?    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  toppingId    String?
+  topping      Topping?    @relation(fields: [toppingId], references: [id], onDelete: Cascade)
+  qtyPerUnit   Float       // Định lượng tiêu hao cho 1 đơn vị ly/món
+  createdAt    DateTime    @default(now())
+
+  @@index([productId])
+  @@index([variantId])
+  @@index([toppingId])
+  @@index([ingredientId])
+}
+
+model StockMovement {
+  id           String      @id @default(cuid())
+  ingredientId String
+  ingredient   Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  delta        Float       // Dương: Nhập (+), Âm: Tiêu hao bán (-)
+  reason       String      // "SALE" | "IMPORT" | "ADJUST" | "CANCEL_RESTORE"
+  orderId      String?
+  order        Order?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+
+  @@index([ingredientId])
+  @@index([orderId])
+  @@index([createdAt])
+}
