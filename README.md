@@ -306,6 +306,30 @@ Dưới đây là các lưu ý và giải pháp khắc phục các vấn đề t
 
 ---
 
+### ⚠️ Lưu ý: Lỗi `SyntaxError: Unexpected end of JSON input at collect-build-traces.js`
+* **Hiện tượng lỗi**:
+  ```text
+  SyntaxError: Unexpected end of JSON input
+      at JSON.parse (<anonymous>)
+      at ...\node_modules\next\dist\build\collect-build-traces.js:429:44
+  ```
+* **Nguyên nhân**: Xảy ra khi có **hai tiến trình `npm run build` cùng chạy song song** tại cùng một thời điểm, hoặc một lần build trước đó bị ngắt đột ngột (bị tắt ngang terminal khi đang ghi file trace `.nft.json`). Khi đó, file trace bị rỗng (0-byte), dẫn đến Next.js không thể `JSON.parse`.
+* **Cách khắc phục**:
+  1. Đảm bảo chỉ mở **duy nhất 1 cửa sổ terminal** chạy build tại một thời điểm.
+  2. Xóa sạch thư mục cache `.next` cũ rồi build lại từ đầu:
+     * Trên Windows PowerShell:
+       ```powershell
+       Remove-Item -Recurse -Force .next
+       npm run build
+       ```
+     * Trên Linux / macOS:
+       ```bash
+       rm -rf .next
+       npm run build
+       ```
+
+---
+
 ### ⚠️ Lưu ý 2: Xử lý lỗi trùng cổng (`EADDRINUSE: address already in use :::3000`)
 * **Hiện tượng lỗi**:
   ```text
