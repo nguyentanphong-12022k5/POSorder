@@ -161,7 +161,6 @@ export default function AdminMenuPage() {
       showError("Lỗi hệ thống khi xoá món");
     }
   };
-  };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -3,7 +3,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+export async function POST(req?: NextRequest) {
   const response = NextResponse.json({
     success: true,
     message: "Đăng xuất thành công",

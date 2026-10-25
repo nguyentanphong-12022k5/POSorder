@@ -371,7 +371,7 @@ describe("Coverage Tests: Lib Utilities & Auxiliary APIs", () => {
       const meRes = await getMeHandler(meReq);
       expect([200, 401]).toContain(meRes.status);
 
-      const logoutRes = await logoutHandler();
+      const logoutRes = await logoutHandler(new NextRequest("http://localhost:3000/api/auth/logout"));
       expect(logoutRes.status).toBe(200);
       const json = await logoutRes.json();
       expect(json.success).toBe(true);
