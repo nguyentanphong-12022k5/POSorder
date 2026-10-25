@@ -39,6 +39,11 @@ jobs:
     name: Unit & Integration Tests
     needs: lint-and-typecheck
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "file:./dev.db"
+      JWT_SECRET: "test-secret-key-12345678901234567890"
+      AUTH_SECRET: "test-secret-key-12345678901234567890"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
@@ -52,8 +57,11 @@ jobs:
       - name: Cài đặt Dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Khởi tạo Prisma Client
-        run: npx prisma generate
+      - name: Khởi tạo Database Kiểm thử (SQLite)
+        run: |
+          npx prisma generate
+          npx prisma db push --skip-generate
+          npx tsx prisma/seed.ts
 
       - name: Chạy bộ kiểm thử tự động (Vitest)
         run: npm test
@@ -67,7 +75,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEXT_TELEMETRY_DISABLED: 1
-      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/posorder?schema=public"
+      DATABASE_URL: "file:./dev.db"
+      JWT_SECRET: "test-secret-key-12345678901234567890"
+      AUTH_SECRET: "test-secret-key-12345678901234567890"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v4
@@ -81,8 +92,11 @@ jobs:
       - name: Cài đặt Dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Khởi tạo Prisma Client
-        run: npx prisma generate
+      - name: Khởi tạo Database cho Build
+        run: |
+          npx prisma generate
+          npx prisma db push --skip-generate
+          npx tsx prisma/seed.ts
 
       - name: Build ứng dụng Next.js
         run: npm run build
