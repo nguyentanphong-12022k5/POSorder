@@ -173,3 +173,12 @@ Nếu bạn muốn sử dụng mô hình Serverless hoàn toàn miễn phí:
   ```bash
   curl -s http://localhost:3000/api/health | jq .
   ```
+
+---
+
+## 🛠️ CÁC LỖI THƯỜNG GẶP KHI KHỞI CHẠY (TROUBLESHOOTING)
+* **Lỗi `Could not find a production build in the '.next' directory`**:
+  Do gõ `npm start` khi chưa chạy `npm run build`. Khi chạy local dev, luôn dùng `npm run dev`. Khi chạy production, bắt buộc chạy `npm run build` trước.
+* **Lỗi `EADDRINUSE: address already in use :::3000`**:
+  Cổng 3000 đang bị chiếm bởi một phiên bản cũ. Tắt tiến trình bằng: `npx kill-port 3000` (Linux/Mac) hoặc `Get-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess | Stop-Process -Force` (Windows).
+* **Xem thêm chi tiết tại**: Mục 8 trong [README.md](file:///e:/dien_khung/POSorder/README.md).

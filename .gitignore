@@ -50,3 +50,8 @@ next-env.d.ts
 /backups/*.sha256
 *.db
 *.db-journal
+
+# PWA generated worker files
+public/sw.js*
+public/workbox-*.js*
+public/swe-worker-*.js*

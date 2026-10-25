@@ -18,6 +18,7 @@
 5. [Cấu Trúc Thư Mục Dự Án](#5-cấu-trúc-thư-mục-dự-án)
 6. [Môi Trường & Triển Khai Production (Docker, CI/CD, Backup)](#6-môi-trường--triển-khai-production)
 7. [Hướng Dẫn Cài Đặt & Khởi Chạy Nhanh](#7-hướng-dẫn-cài-đặt--khởi-chạy-nhanh)
+8. [Hướng Dẫn Khởi Chạy & Các Lưu Ý Tránh Lỗi (Troubleshooting / FAQ)](#8-hướng-dẫn-khởi-chạy--các-lưu-ý-tránh-lỗi-troubleshooting--faq)
 
 ---
 
@@ -272,4 +273,98 @@ docker compose exec app npx tsx prisma/seed.ts
 ```
 
 ---
+---
+
+## 8. HƯỚNG DẪN KHỞI CHẠY & CÁC LƯU Ý TRÁNH LỖI (TROUBLESHOOTING / FAQ)
+
+Dưới đây là các lưu ý và giải pháp khắc phục các vấn đề thường gặp nhất giúp lập trình viên và người vận hành hệ thống không bị mắc lỗi khi khởi chạy:
+
+### ⚠️ Lưu ý 1: Phân biệt `npm run dev` (Lập trình) và `npm start` (Vận hành Production)
+* **Hiện tượng lỗi**:
+  ```text
+  Error: Could not find a production build in the '.next' directory.
+  Try building your app with 'next build' before starting the production server.
+  ```
+* **Nguyên nhân**: Lệnh `npm start` (hoặc `next start`) là chế độ chạy sản phẩm Production, đòi hỏi Next.js phải có sẵn thư mục build hoàn chỉnh `.next/BUILD_ID`. Nếu bạn vừa tải dự án về hoặc chưa chạy lệnh build mà đã gõ `npm start`, hệ thống sẽ báo lỗi này.
+* **Quy tắc sử dụng đúng**:
+  * **Khi làm việc trên máy tính (phát triển, sửa code, dùng thử giao diện)**:
+    👉 **Chỉ cần chạy duy nhất lệnh:**
+    ```bash
+    npm run dev
+    ```
+    *(Khởi động tức thì sau 2 giây, không cần build trước, tự động tải lại màn hình khi sửa code, truy cập `http://localhost:3000`).*
+  * **Khi muốn chạy phiên bản Production (Standalone)**:
+    👉 **Bắt buộc tuân thủ đúng 2 bước theo thứ tự:**
+    ```bash
+    # Bước 1: Build mã nguồn (chờ khoảng 40-50 giây)
+    npm run build
+
+    # Bước 2: Khởi động server
+    node .next/standalone/server.js
+    # hoặc: npm start
+    ```
+
+---
+
+### ⚠️ Lưu ý 2: Xử lý lỗi trùng cổng (`EADDRINUSE: address already in use :::3000`)
+* **Hiện tượng lỗi**:
+  ```text
+  Error: listen EADDRINUSE: address already in use :::3000
+  ```
+* **Nguyên nhân**: Cổng 3000 đang bị chiếm bởi một phiên bản server chạy trước đó hoặc một terminal khác đang chạy ngầm chưa được đóng.
+* **Cách khắc phục nhanh**:
+  * **Trên Windows PowerShell**:
+    ```powershell
+    # Tìm và tắt tiến trình đang chiếm cổng 3000:
+    Get-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess | Stop-Process -Force
+    ```
+  * **Trên Linux / macOS**:
+    ```bash
+    npx kill-port 3000
+    # hoặc:
+    kill -9 $(lsof -t -i:3000)
+    ```
+
+---
+
+### ⚠️ Lưu ý 3: Lỗi Database hoặc thiếu bảng / thiếu dữ liệu menu mẫu
+* **Hiện tượng lỗi**: Khi mở web app lên, màn hình báo lỗi không tải được menu hoặc thông báo `Table "Product" does not exist`.
+* **Cách khắc phục**:
+  ```bash
+  # 1. Đồng bộ cấu trúc bảng vào database:
+  npx prisma db push
+
+  # 2. Nạp dữ liệu mẫu ban đầu (menu nước, size, topping, tài khoản nhân viên):
+  npx tsx prisma/seed.ts
+  ```
+
+---
+
+### ⚠️ Lưu ý 4: Biến môi trường và cơ chế kiểm tra Zod lúc khởi động
+* Hệ thống tích hợp Zod validation tại `lib/env.ts` để kiểm tra độ an toàn của toàn bộ biến môi trường ngay khi ứng dụng khởi động.
+* Nếu thiếu file `.env` hoặc thiếu các biến cốt lõi, server sẽ từ chối khởi động để tránh rò rỉ bảo mật hoặc sai lệch tiền tệ.
+* **Cách xử lý**:
+  ```bash
+  # Sao chép từ file mẫu chuẩn:
+  cp .env.example .env
+  ```
+  *(Khi chạy ở môi trường phát triển cục bộ, cấu hình mặc định SQLite `DATABASE_URL="file:./dev.db"` đã sẵn sàng chạy ngay mà không bắt buộc phải cài Postgres).*
+
+---
+
+### ⚠️ Lưu ý 5: Thông tin tài khoản đăng nhập mẫu
+Hệ thống phân quyền theo 2 vai trò chuẩn:
+| Vai trò | Email đăng nhập | Mật khẩu | Quyền hạn nghiệp vụ |
+| :--- | :--- | :--- | :--- |
+| **Quản trị viên (Admin)** | `admin@pos.vn` | `admin123` | Toàn quyền: Xem báo cáo doanh thu, quản lý ca, kho nguyên liệu, hủy đơn đặc biệt không cần PIN |
+| **Nhân viên thu ngân (Staff)** | `staff@pos.vn` | `staff123` | Bán hàng POS, xem đơn, in hóa đơn. Khi hủy đơn đã in cần nhập mã PIN Admin (mặc định: `9999`) |
+
+---
+
+### ⚠️ Lưu ý 6: Hoạt động Ngoại Tuyến (Offline-First PWA)
+* Ứng dụng hỗ trợ PWA và cơ sở dữ liệu IndexedDB trên trình duyệt của Tablet / POS.
+* **Lưu ý quan trọng**: Thiết bị POS / Tablet cần được kết nối mạng và truy cập vào ứng dụng **ít nhất 1 lần đầu tiên** để trình duyệt tải và lưu sẵn Service Worker cũng như App Shell. Sau đó, nếu mạng quán bị đứt, thu ngân vẫn có thể tạo đơn bình thường; đơn hàng sẽ tự động đồng bộ lên server ngay khi có mạng trở lại.
+
+---
+
 *Báo cáo được khởi tạo và kiểm thử thành công vào ngày 25/10/2026. Toàn bộ mã nguồn sẵn sàng cho vận hành Production.*
