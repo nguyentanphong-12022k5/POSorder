@@ -328,19 +328,60 @@ export default function CheckoutPage() {
             </div>
 
             {orderType === "DINE_IN" && (
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700">Chọn vị trí bàn:</span>
-                <select
-                  value={selectedTable}
-                  onChange={(e) => setSelectedTable(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white focus:outline-none"
-                >
-                  {tables.map((t) => (
-                    <option key={t.id} value={t.name}>
-                      {t.name} {t.status === "OCCUPIED" ? "(Đang có khách)" : "(Trống)"}
-                    </option>
-                  ))}
-                </select>
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Utensils className="w-3.5 h-3.5 text-amber-600" />
+                    Bàn phục vụ: <span className="text-amber-700 font-black">{selectedTable}</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Bấm chọn bàn bên dưới</span>
+                </div>
+
+                {/* Danh sách bàn nhanh dạng nút bấm trực quan */}
+                <div className="grid grid-cols-4 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                  {tables.map((t) => {
+                    const isSelected = selectedTable === t.name;
+                    const isOccupied = t.status === "OCCUPIED";
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelectedTable(t.name)}
+                        className={`p-2 rounded-xl text-xs font-bold border transition text-center flex flex-col items-center gap-0.5 ${
+                          isSelected
+                            ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-300"
+                            : isOccupied
+                            ? "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
+                            : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="truncate w-full">{t.name}</span>
+                        <span
+                          className={`text-[9px] font-normal ${
+                            isSelected
+                              ? "text-amber-100"
+                              : isOccupied
+                              ? "text-orange-600"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {isOccupied ? "Có khách" : "Trống"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Hoặc nhập số bàn tùy ý nếu quán có nhiều bàn */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={selectedTable}
+                    onChange={(e) => setSelectedTable(e.target.value)}
+                    placeholder="Hoặc gõ tên bàn (VD: Bàn 12, Ngoài trời...)"
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -348,10 +389,25 @@ export default function CheckoutPage() {
           {/* Chi tiết đơn */}
           <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-amber-600" />
-                Chi tiết hóa đơn ({items.length} món)
-              </h2>
+              <div>
+                <h2 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-amber-600" />
+                  Chi tiết hóa đơn ({items.length} món)
+                </h2>
+                <div className="mt-1">
+                  <span
+                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                      orderType === "DINE_IN"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-blue-100 text-blue-800"
+                    }`}
+                  >
+                    {orderType === "DINE_IN"
+                      ? `🍽️ Tại bàn: ${selectedTable}`
+                      : "🛍️ Mang về (Takeaway)"}
+                  </span>
+                </div>
+              </div>
               <Link href="/" className="text-xs text-amber-600 hover:underline font-semibold">
                 Sửa món
               </Link>
@@ -648,7 +704,10 @@ export default function CheckoutPage() {
             ) : (
               <>
                 <Printer className="w-4 h-4" />
-                <span>Xác nhận & In bill ({formatVND(total)})</span>
+                <span>
+                  Xác nhận & In bill ({formatVND(total)}) •{" "}
+                  {orderType === "DINE_IN" ? selectedTable : "Mang về"}
+                </span>
               </>
             )}
           </button>

@@ -29,13 +29,24 @@ function bufferToBase64Url(buffer: ArrayBuffer | Uint8Array): string {
     .replace(/=+$/, "");
 }
 
-// Base64Url decode sang string
-function base64UrlToStr(base64url: string): string {
+// Base64Url decode sang Uint8Array (cho chữ ký số và dữ liệu nhị phân)
+function base64UrlToBytes(base64url: string): Uint8Array {
   let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
   while (base64.length % 4) {
     base64 += "=";
   }
-  return atob(base64);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// Base64Url decode sang UTF-8 string (cho JSON payload tiếng Việt không lỗi font)
+function base64UrlToStr(base64url: string): string {
+  const bytes = base64UrlToBytes(base64url);
+  return new TextDecoder().decode(bytes);
 }
 
 // Lấy CryptoKey HMAC-SHA256
@@ -81,11 +92,7 @@ export async function verifyAuthToken(token: string): Promise<SessionUser | null
     const [headerB64, payloadB64, sigB64] = parts;
     const dataToVerify = `${headerB64}.${payloadB64}`;
 
-    const binarySig = base64UrlToStr(sigB64);
-    const sigBytes = new Uint8Array(binarySig.length);
-    for (let i = 0; i < binarySig.length; i++) {
-      sigBytes[i] = binarySig.charCodeAt(i);
-    }
+    const sigBytes = base64UrlToBytes(sigB64);
 
     const key = await getCryptoKey();
     const isValid = await crypto.subtle.verify(

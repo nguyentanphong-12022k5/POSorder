@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, quantity, addQuantity, minQuantity } = body;
+    const { id, name, unit, costPrice, quantity, addQuantity, minQuantity } = body;
 
     const item = await prisma.inventoryItem.findUnique({ where: { id } });
     if (!item) {
@@ -52,12 +52,33 @@ export async function PATCH(req: NextRequest) {
     const updated = await prisma.inventoryItem.update({
       where: { id },
       data: {
+        name: name !== undefined ? String(name).trim() : undefined,
+        unit: unit !== undefined ? String(unit).trim() : undefined,
+        costPrice: costPrice !== undefined ? parseInt(costPrice, 10) : undefined,
         quantity: Math.max(0, newQty),
         minQuantity: minQuantity !== undefined ? parseFloat(minQuantity) : undefined,
       },
     });
 
     return NextResponse.json({ success: true, data: updated });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ success: false, message: "Thiếu ID nguyên liệu cần xoá" }, { status: 400 });
+    }
+
+    await prisma.inventoryItem.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true, message: "Đã xoá nguyên liệu thành công" });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }

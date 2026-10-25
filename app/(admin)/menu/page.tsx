@@ -14,6 +14,8 @@ import {
   EyeOff,
   Image as ImageIcon,
   Loader2,
+  Upload,
+  Trash2,
 } from "lucide-react";
 
 export default function AdminMenuPage() {
@@ -25,6 +27,8 @@ export default function AdminMenuPage() {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editPrice, setEditPrice] = useState<string>("");
   const [editName, setEditName] = useState<string>("");
+  const [editImageUrl, setEditImageUrl] = useState<string>("");
+  const [editCategoryId, setEditCategoryId] = useState<string>("");
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
 
   // New product form
@@ -83,6 +87,31 @@ export default function AdminMenuPage() {
     setEditingProduct(product);
     setEditPrice(product.basePrice.toString());
     setEditName(product.name);
+    setEditImageUrl(product.imageUrl || "");
+    setEditCategoryId(product.categoryId || (categories[0]?.id || ""));
+  };
+
+  const handleImageFileUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    isEdit: boolean
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showError("Dung lượng ảnh tối đa 2MB!", "Ảnh quá lớn");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      if (isEdit) {
+        setEditImageUrl(base64);
+      } else {
+        setNewImageUrl(base64);
+      }
+      showSuccess("Đã tải ảnh lên thành công!", "Hình ảnh");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveEdit = async () => {
@@ -95,22 +124,43 @@ export default function AdminMenuPage() {
           id: editingProduct.id,
           name: editName,
           basePrice: parseInt(editPrice, 10),
+          imageUrl: editImageUrl || null,
+          categoryId: editCategoryId,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        setProducts(
-          products.map((p) =>
-            p.id === editingProduct.id
-              ? { ...p, name: editName, basePrice: parseInt(editPrice, 10) }
-              : p
-          )
-        );
+        showSuccess("Đã cập nhật thông tin món thành công!");
+        fetchData();
         setEditingProduct(null);
+      } else {
+        showError(data.message || "Lỗi cập nhật món");
       }
     } catch (e) {
       console.error("Lỗi lưu sản phẩm:", e);
+      showError("Lỗi hệ thống khi lưu sản phẩm");
     }
+  };
+
+  const handleDeleteProduct = async (product: any) => {
+    if (!confirm(`Bạn có chắc chắn muốn xoá món "${product.name}" khỏi menu?`)) return;
+    try {
+      const res = await fetch(`/api/products?id=${product.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess("Đã xoá món khỏi thực đơn!");
+        if (editingProduct?.id === product.id) setEditingProduct(null);
+        fetchData();
+      } else {
+        showError(data.message || "Không thể xoá món");
+      }
+    } catch (e) {
+      console.error(e);
+      showError("Lỗi hệ thống khi xoá món");
+    }
+  };
   };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -236,21 +286,12 @@ export default function AdminMenuPage() {
                       </td>
 
                       <td className="py-3 px-4 font-semibold text-slate-800">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="px-2.5 py-1 rounded-lg border border-slate-300 text-sm w-full max-w-[200px]"
-                          />
-                        ) : (
-                          <div>
-                            <span>{product.name}</span>
-                            <div className="text-[11px] text-slate-400 font-normal">
-                              {product.variants?.map((v: any) => v.name).join(", ")}
-                            </div>
+                        <div>
+                          <span>{product.name}</span>
+                          <div className="text-[11px] text-slate-400 font-normal">
+                            {product.variants?.map((v: any) => v.name).join(", ")}
                           </div>
-                        )}
+                        </div>
                       </td>
 
                       <td className="py-3 px-4 text-slate-600 text-xs">
@@ -260,16 +301,7 @@ export default function AdminMenuPage() {
                       </td>
 
                       <td className="py-3 px-4 font-bold text-amber-600">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            value={editPrice}
-                            onChange={(e) => setEditPrice(e.target.value)}
-                            className="px-2.5 py-1 rounded-lg border border-slate-300 text-sm w-28"
-                          />
-                        ) : (
-                          formatVND(product.basePrice)
-                        )}
+                        {formatVND(product.basePrice)}
                       </td>
 
                       <td className="py-3 px-4">
@@ -297,35 +329,24 @@ export default function AdminMenuPage() {
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        {isEditing ? (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={handleSaveEdit}
-                              className="p-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition"
-                              title="Lưu"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingProduct(null)}
-                              className="p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 transition"
-                              title="Hủy"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => handleStartEdit(product)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-slate-100 transition"
-                            title="Sửa tên / giá"
+                            title="Chỉnh sửa thông tin món"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(product)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                            title="Xoá món"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -335,6 +356,144 @@ export default function AdminMenuPage() {
           </table>
         </div>
       </div>
+
+      {/* Modal Chỉnh sửa thông tin món */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-amber-600" />
+                Chỉnh sửa món đồ uống
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveEdit();
+              }}
+              className="space-y-3.5"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tên sản phẩm *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Danh mục *
+                  </label>
+                  <select
+                    value={editCategoryId}
+                    onChange={(e) => setEditCategoryId(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 bg-white"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Giá bán (VNĐ) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 font-bold text-amber-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Ảnh món (Link URL hoặc chọn từ máy)
+                </label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={editImageUrl}
+                    onChange={(e) => setEditImageUrl(e.target.value)}
+                    placeholder="Dán link ảnh https://... hoặc tải từ máy"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                  />
+
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+                      <Upload className="w-3.5 h-3.5 text-amber-600" />
+                      Chọn file ảnh từ máy tính
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleImageFileUpload(e, true)}
+                      />
+                    </label>
+
+                    {editImageUrl && (
+                      <img
+                        src={editImageUrl}
+                        alt="Preview"
+                        className="w-10 h-10 rounded-lg object-cover border border-slate-200"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteProduct(editingProduct)}
+                  className="px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 text-xs font-bold transition flex items-center gap-1"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Xoá món
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProduct(null)}
+                    className="px-4 py-2 rounded-xl text-slate-600 font-semibold text-xs hover:bg-slate-100 transition"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl text-white font-bold text-xs bg-amber-600 hover:bg-amber-700 shadow-xs transition"
+                  >
+                    Lưu thay đổi
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Thêm món mới */}
       {showAddModal && (
@@ -400,15 +559,38 @@ export default function AdminMenuPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Link ảnh thumbnail (URL)
+                  Link ảnh thumbnail (URL hoặc tải từ máy)
                 </label>
-                <input
-                  type="url"
-                  value={newImageUrl}
-                  onChange={(e) => setNewImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                />
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newImageUrl}
+                    onChange={(e) => setNewImageUrl(e.target.value)}
+                    placeholder="https://... hoặc bấm nút dưới để chọn file"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                  />
+
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+                      <Upload className="w-3.5 h-3.5 text-amber-600" />
+                      Chọn file ảnh từ máy tính
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleImageFileUpload(e, false)}
+                      />
+                    </label>
+
+                    {newImageUrl && (
+                      <img
+                        src={newImageUrl}
+                        alt="Preview"
+                        className="w-10 h-10 rounded-lg object-cover border border-slate-200"
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2">

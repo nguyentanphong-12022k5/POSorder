@@ -53,6 +53,7 @@ export default function OrderDetailPage() {
   const [printError, setPrintError] = useState<string | null>(null);
   const [printSuccessMessage, setPrintSuccessMessage] = useState<string | null>(null);
   const [simulateError, setSimulateError] = useState<boolean>(false);
+  const hasAutoPrintedRef = React.useRef(false);
 
   // Modal Hủy đơn
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -94,12 +95,29 @@ export default function OrderDetailPage() {
     }
   }, [orderId]);
 
-  // Tự động in nếu chuyển từ checkout
+  // Hàm chuẩn hóa chuỗi lỗi tránh render object làm crash React
+  const extractErrorMessage = (err: any, fallback: string): string => {
+    if (!err) return fallback;
+    if (typeof err === "string") return err;
+    if (typeof err === "object") {
+      if (typeof err.message === "string") return err.message;
+      if (typeof err.error === "string") return err.error;
+      if (err.error && typeof err.error.message === "string") return err.error.message;
+    }
+    return fallback;
+  };
+
+  // Tự động in DUY NHẤT 1 LẦN nếu chuyển từ checkout
   useEffect(() => {
-    if (!isLoading && order && shouldAutoPrint) {
+    if (!isLoading && order && shouldAutoPrint && !hasAutoPrintedRef.current) {
+      hasAutoPrintedRef.current = true;
+      // Dọn sạch tham số ?print=1 trên URL để tránh lặp khi F5
+      if (typeof window !== "undefined" && window.history?.replaceState) {
+        window.history.replaceState(null, "", `/orders/${order.id}`);
+      }
       const timer = setTimeout(() => {
-        handleTriggerPrint(false);
-      }, 500);
+        handleTriggerPrint(false, true);
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [isLoading, order, shouldAutoPrint]);
@@ -108,7 +126,7 @@ export default function OrderDetailPage() {
    * Gọi API POST /api/orders/[id]/print
    * Hỗ trợ in lần đầu, in lại, chặn spam < 3s và xử lý an toàn khi máy in throw
    */
-  const handleTriggerPrint = async (simErr = simulateError) => {
+  const handleTriggerPrint = async (simErr = simulateError, isAuto = false) => {
     if (!order) return;
     setIsPrinting(true);
     setPrintError(null);
@@ -126,7 +144,10 @@ export default function OrderDetailPage() {
       if (res.status === 429) {
         // Chặn spam in < 3s
         setPrintError(
-          data.error || "Thao tác in quá nhanh! Vui lòng chờ ít nhất 3 giây."
+          extractErrorMessage(
+            data.error || data.message,
+            "Thao tác in quá nhanh! Vui lòng chờ ít nhất 3 giây."
+          )
         );
         return;
       }
@@ -134,7 +155,10 @@ export default function OrderDetailPage() {
       if (!res.ok || data.printed === false) {
         // Máy in lỗi (ESC/POS throw error) -> Đơn không bị mất, báo lỗi rõ ràng
         setPrintError(
-          data.error || "In thất bại do sự cố máy in hoặc kết nối. Vui lòng kiểm tra thiết bị!"
+          extractErrorMessage(
+            data.error || data.message,
+            "In thất bại do sự cố máy in hoặc kết nối. Vui lòng kiểm tra thiết bị!"
+          )
         );
         return;
       }
@@ -152,16 +176,18 @@ export default function OrderDetailPage() {
         }));
       }
 
-      // Kích hoạt thêm window.print() cho máy in driver trình duyệt nếu cần
-      try {
-        if (typeof window !== "undefined" && typeof window.print === "function") {
-          window.print();
+      // Chỉ bật hộp thoại window.print() nếu in thủ công (không tự động ép hiện pop-up chặn màn hình)
+      if (!isAuto) {
+        try {
+          if (typeof window !== "undefined" && typeof window.print === "function") {
+            window.print();
+          }
+        } catch (e) {
+          // Bỏ qua môi trường kiểm thử
         }
-      } catch (e) {
-        // Ignored in headless/test environments
       }
     } catch (err: any) {
-      setPrintError(err.message || "In thất bại, bấm để thử lại");
+      setPrintError(extractErrorMessage(err, "In thất bại, bấm để thử lại"));
     } finally {
       setIsPrinting(false);
     }
