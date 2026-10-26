@@ -9,16 +9,22 @@
 ## 📑 MỤC LỤC
 1. [Tổng Quan Dự Án](#1-tổng-quan-dự-án)
 2. [Kiến Trúc Kỹ Thuật (Tech Stack)](#2-kiến-trúc-kỹ-thuật-tech-stack)
-3. [Báo Cáo Chi Tiết Các Tầng Nghiệp Vụ](#3-báo-cáo-chi-tiết-các-tầng-nghiệp-vụ)
+3. [Sơ Đồ Hoạt Động & Kiến Trúc Toàn Diện](#3-sơ-đồ-hoạt-động--kiến-trúc-toàn-diện)
+   - [Sơ đồ 1: Tổng Thể Kiến Trúc Hệ Thống](#31-sơ-đồ-1-tổng-thể-kiến-trúc-hệ-thống-system-architecture)
+   - [Sơ đồ 2: Luồng Gọi Món & In Hóa Đơn Tự Động](#32-sơ-đồ-2-luồng-gọi-món--in-hóa-đơn-tự-động-order--auto-print-flow)
+   - [Sơ đồ 3: Luồng Hoạt Động Ngoại Tuyến (Offline-First)](#33-sơ-đồ-3-luồng-hoạt-động-ngoại-tuyến-offline-first--auto-replay-sync)
+   - [Sơ đồ 4: Chu Trình Màn Hình Bếp Pha Chế (KDS)](#34-sơ-đồ-4-chu-trình-màn-hình-bếp-pha-chế-kitchen-kds-lifecycle)
+   - [Sơ đồ 5: Luồng Quản Lý Ca & Đối Soát Tiền Mặt](#35-sơ-đồ-5-luồng-quản-lý-ca--đối-soát-tiền-mặt-shift-management)
+4. [Báo Cáo Chi Tiết Các Tầng Nghiệp Vụ](#4-báo-cáo-chi-tiết-các-tầng-nghiệp-vụ)
    - [Tầng P0: Tính Năng Cốt Lõi & Bền Vững](#tầng-p0-tính-năng-cốt-lõi--bền-vững)
    - [Tầng P1: Vận Hành Quán Chuyên Nghiệp](#tầng-p1-vận-hành-quán-chuyên-nghiệp)
    - [Tầng P2: Offline-First, PWA Tablet & Máy In ESC/POS](#tầng-p2-offline-first-pwa-tablet--máy-in-escpos)
    - [Nâng Cấp Trải Nghiệm Người Dùng (UX & Accessibility)](#nâng-cấp-trải-nghiệm-người-dùng-ux--accessibility)
-4. [Báo Cáo Kiểm Thử Hệ Thống (Testing Report)](#4-báo-cáo-kiểm-thử-hệ-thống-testing-report)
-5. [Cấu Trúc Thư Mục Dự Án](#5-cấu-trúc-thư-mục-dự-án)
-6. [Môi Trường & Triển Khai Production (Docker, CI/CD, Backup)](#6-môi-trường--triển-khai-production)
-7. [Hướng Dẫn Cài Đặt & Khởi Chạy Nhanh](#7-hướng-dẫn-cài-đặt--khởi-chạy-nhanh)
-8. [Hướng Dẫn Khởi Chạy & Các Lưu Ý Tránh Lỗi (Troubleshooting / FAQ)](#8-hướng-dẫn-khởi-chạy--các-lưu-ý-tránh-lỗi-troubleshooting--faq)
+5. [Báo Cáo Kiểm Thử Hệ Thống (Testing Report)](#5-báo-cáo-kiểm-thử-hệ-thống-testing-report)
+6. [Cấu Trúc Thư Mục Dự Án](#6-cấu-trúc-thư-mục-dự-án)
+7. [Môi Trường & Triển Khai Production (Docker, CI/CD, Backup)](#7-môi-trường--triển-khai-production)
+8. [Hướng Dẫn Cài Đặt & Khởi Chạy Nhanh](#8-hướng-dẫn-cài-đặt--khởi-chạy-nhanh)
+9. [Hướng Dẫn Khởi Chạy & Các Lưu Ý Tránh Lỗi (Troubleshooting / FAQ)](#9-hướng-dẫn-khởi-chạy--các-lưu-ý-tránh-lỗi-troubleshooting--faq)
 
 ---
 
@@ -50,7 +56,244 @@ Hệ thống **POS Order** là giải pháp phần mềm quản lý bán hàng v
 
 ---
 
-## 3. BÁO CÁO CHI TIẾT CÁC TẦNG NGHIỆP VỤ
+## 3. SƠ ĐỒ HOẠT ĐỘNG & KIẾN TRÚC TOÀN DIỆN
+
+Hệ thống POS Order được thiết kế theo mô hình phân tầng khép kín (End-to-End F&B Architecture) với khả năng chịu lỗi cao, đồng bộ thời gian thực và hỗ trợ vận hành liên tục khi mất mạng (Offline-First). Dưới đây là 5 sơ đồ trực quan chi tiết mô tả kiến trúc và từng chu trình hoạt động của hệ thống.
+
+---
+
+### 3.1. Sơ đồ 1: Tổng Thể Kiến Trúc Hệ Thống (System Architecture)
+
+Sơ đồ thể hiện luồng tương tác giữa các thiết bị đầu cuối (Tablet thu ngân, màn hình bếp KDS, máy tính quản trị), tầng API Gateway/Bảo mật, lõi xử lý nghiệp vụ Next.js 14, cơ sở dữ liệu Prisma và các thiết bị ngoại vi (máy in nhiệt ESC/POS 80mm, cổng VietQR):
+
+```mermaid
+flowchart TB
+    subgraph Clients["TẦNG CLIENT & GIAO DIỆN NGƯỜI DÙNG"]
+        direction TB
+        POS["📱 POS Thu Ngân (PWA / Tablet)<br/>- Zustand Cart Store<br/>- Cảm ứng chọn món, size, topping, bàn<br/>- Dexie IndexedDB (Lưu đơn offline)"]
+        KDS["🍳 Màn Hình Bếp KDS (Kitchen Display)<br/>- Supabase Realtime WebSocket<br/>- Chuông báo Web Audio kép (Ding-dong)<br/>- Thẻ đơn đổi màu: Chờ / Làm / Xong"]
+        ADM["💻 Cổng Quản Trị (Admin Portal)<br/>- Báo cáo doanh thu & Giờ cao điểm (Recharts)<br/>- Quản lý kho, định lượng Recipe (kg/g, L/ml)<br/>- Quản lý Menu & Upload ảnh"]
+        CUST["👤 Khách Hàng<br/>- Quét mã VietQR Napas 247 thanh toán<br/>- Nhận hóa đơn in nhiệt 80mm có mã tra cứu"]
+    end
+
+    subgraph Security["TẦNG BẢO MẬT & GATEWAY (Next.js Middleware)"]
+        AUTH["🔒 Authentication & JWT Cookie<br/>(HMAC-SHA256, RBAC: Admin vs Staff)"]
+        RATELIMIT["⏱️ Rate Limiter (Token-Bucket)<br/>(Chống brute-force & spam in bill 3s)"]
+        IDEMPOTENT["🛡️ Idempotency Guard<br/>(Chặn double-click & request trùng lặp)"]
+    end
+
+    subgraph Backend["TẦNG MÁY CHỦ ỨNG DỤNG (Next.js 14 App Router API)"]
+        direction TB
+        ORD_API["📦 Order Engine (/api/orders)<br/>- Database Transaction ACID<br/>- Atomic Counter sinh mã HD00xx<br/>- Snapshot OrderItem cứng giá"]
+        INV_API["🌾 Inventory Engine (/api/inventory)<br/>- Trừ kho tự động theo công thức Recipe<br/>- Quy đổi đơn vị (kg ↔ g, L ↔ ml)<br/>- Cảnh báo hết hàng"]
+        PRN_API["🖨️ Print Service (/api/orders/id/print)<br/>- ESC/POS Driver (TCP / USB / LAN)<br/>- PrintLog audit & Watermark in lại<br/>- PDFKit fallback generator"]
+        SHIFT_API["💵 Shift Engine (/api/shifts)<br/>- Mở / Đóng ca làm việc<br/>- Tính tiền mặt dự kiến & chênh lệch thực tế"]
+        KDS_API["⚡ KDS Realtime Hub (/api/kds)<br/>- Phát thông báo đơn mới tới bếp<br/>- Cập nhật tiến độ món"]
+    end
+
+    subgraph Database["TẦNG LƯU TRỮ DỮ LIỆU (Prisma ORM 5.21)"]
+        DB[("🗄️ PostgreSQL 16 / SQLite<br/>- Order, OrderItem, Counter<br/>- Ingredient, RecipeItem, StockMovement<br/>- Shift, PrintLog, AuditLog<br/>- IdempotencyKey")]
+    end
+
+    subgraph Hardware["THIẾT BỊ NGOẠI VI & DỊCH VỤ NGOÀI"]
+        PRINTER["🖨️ Máy In Nhiệt 80mm ESC/POS<br/>(Xprinter, Epson - TCP:9100 / USB)"]
+        VIETQR["💳 Cổng Thanh Toán VietQR<br/>(Sinh mã QR động Napas 247)"]
+    end
+
+    POS -->|Gửi đơn / Gọi API| AUTH
+    ADM -->|Quản trị / Cấu hình| AUTH
+    AUTH --> RATELIMIT --> IDEMPOTENT
+
+    IDEMPOTENT --> ORD_API
+    IDEMPOTENT --> SHIFT_API
+    IDEMPOTENT --> INV_API
+    IDEMPOTENT --> PRN_API
+
+    ORD_API <-->|Transaction ACID| DB
+    ORD_API -->|Trừ nguyên liệu tự động| INV_API
+    INV_API <-->|Đọc / Cập nhật kho| DB
+    SHIFT_API <-->|Ghi nhận ca & doanh thu| DB
+    PRN_API <-->|Lưu PrintLog audit| DB
+
+    ORD_API -.->|Bắn thông báo đơn mới| KDS_API
+    KDS_API -.->|Supabase Realtime / WebSocket| KDS
+    KDS -->|Cập nhật trạng thái món| KDS_API
+
+    PRN_API -->|TCP Socket Raw Bytes| PRINTER
+    ORD_API -.->|Sinh link QR thanh toán| VIETQR
+    VIETQR -.->|Hiển thị QR trên POS & Bill| CUST
+    PRINTER -->|In hóa đơn trao tay| CUST
+```
+
+---
+
+### 3.2. Sơ đồ 2: Luồng Gọi Món & In Hóa Đơn Tự Động (Order & Auto-Print Flow)
+
+Sơ đồ trình tự mô tả chi tiết từng bước từ lúc Thu ngân bấm gọi món trên tablet, quá trình khóa giao diện chống bấm đúp (Debounce), cơ chế kiểm tra Idempotency-Key, giao dịch trừ kho nguyên liệu, cập nhật Atomic Counter `HD00xx`, thông báo Realtime sang bếp và kết nối socket TCP tới máy in nhiệt:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor ThuNgan as "📱 Thu Ngân (POS)"
+    participant Client as "💻 Trình duyệt / PWA"
+    participant API as "⚙️ Next.js API (/api/orders)"
+    participant DB as "🗄️ Database (Prisma)"
+    participant Bep as "🍳 Màn hình Bếp (KDS)"
+    participant PrintSvc as "🖨️ Print API (/print)"
+    participant MayIn as "📠 Máy In Nhiệt ESC/POS"
+
+    ThuNgan->>Client: 1. Chọn món, size, topping, số bàn (Bàn 01...)
+    ThuNgan->>Client: 2. Bấm "XÁC NHẬN THANH TOÁN"
+    Client->>Client: Vô hiệu hóa nút (Disable + Loading Spinner)
+    Client->>Client: Sinh Idempotency-Key (UUID duy nhất)
+
+    alt Đang có kết nối mạng (Online)
+        Client->>API: POST /api/orders (kèm Idempotency-Key)
+        API->>DB: Bắt đầu Database Transaction ($transaction)
+        
+        API->>DB: 1. Kiểm tra tồn kho nguyên liệu (RecipeItem)
+        alt Không đủ nguyên liệu
+            DB-->>API: Thiếu nguyên liệu (vd: Trà lài chỉ còn 20g)
+            API-->>Client: 400 Bad Request ("Nguyên liệu không đủ...")
+            Client-->>ThuNgan: Hiển thị cảnh báo đỏ & mở khóa nút
+        else Đủ nguyên liệu
+            API->>DB: 2. Atomic Counter: Tăng & lấy mã đơn tiếp theo (HD0020)
+            API->>DB: 3. Tạo Order & OrderItem (Lưu cứng snapshot giá & topping)
+            API->>DB: 4. Trừ tồn kho Ingredient & tạo bản ghi StockMovement
+            API->>DB: 5. Ghi IdempotencyKey (tránh gửi lặp đơn)
+            DB-->>API: Commit Transaction thành công!
+            
+            API-->>Bep: Phát sự kiện realtime đơn mới (Supabase Channel)
+            Bep->>Bep: Rung chuông Web Audio (Ding-dong kép) & hiện thẻ đơn
+            
+            API-->>Client: 201 Created (Trả về chi tiết đơn HD0020)
+            Client->>Client: Xóa giỏ hàng & chuyển sang trang chi tiết đơn
+            
+            Client->>PrintSvc: POST /api/orders/HD0020/print (Tự động in)
+            PrintSvc->>DB: Đọc PrintLog kiểm tra số lần in
+            PrintSvc->>PrintSvc: Lần 1: isReprint = false ("HÓA ĐƠN THANH TOÁN")
+            PrintSvc->>MayIn: Gửi mã ESC/POS qua TCP socket (Port 9100)
+            
+            alt Máy in sẵn sàng
+                MayIn->>MayIn: In hóa đơn, in VietQR, cắt giấy, phát tiếng beep
+                MayIn-->>PrintSvc: Socket gửi byte thành công
+                PrintSvc->>DB: Tạo bản ghi PrintLog (printCount = 1)
+                PrintSvc-->>Client: 200 OK ({ printed: true })
+            else Máy in mất mạng / hết giấy
+                PrintSvc->>PrintSvc: Retry 3 lần kèm Exponential Backoff 500ms
+                PrintSvc-->>Client: 200 OK ({ printed: false, error: "Máy in không phản hồi" })
+                Client-->>ThuNgan: Hiện nút "Tải PDF Hóa Đơn" dự phòng (Không mất đơn!)
+            end
+        end
+    else Mất kết nối mạng (Offline Mode)
+        Client->>Client: Lưu đơn vào Dexie IndexedDB cục bộ (isSynced = false)
+        Client-->>ThuNgan: Hiện thông báo "Đã lưu đơn ngoại tuyến"
+        Client->>Client: Hỗ trợ in tạm hóa đơn PDF trực tiếp từ trình duyệt
+    end
+```
+
+---
+
+### 3.3. Sơ đồ 3: Luồng Hoạt Động Ngoại Tuyến (Offline-First & Auto-Replay Sync)
+
+Mô tả cơ chế hoạt động liên tục khi quán bị đứt mạng Internet/Wi-Fi: Đơn hàng vẫn được tạo và lưu trữ an toàn trong IndexedDB của trình duyệt máy POS, hóa đơn tạm được in ra từ client, và khi có mạng trở lại hệ thống tự động đẩy hàng đợi lên server và xử lý xung đột 409 an toàn:
+
+```mermaid
+flowchart TD
+    A["📱 Thu Ngân bấm Xác Nhận Đơn"] --> B{"🌐 Kiểm Tra Kết Nối Mạng<br/>(navigator.onLine)"}
+
+    B -->|Đang Online| C["Gửi trực tiếp lên Server: POST /api/orders"]
+    C --> D["Database ghi nhận đơn & trả về mã HD"]
+    D --> E["In hóa đơn và đồng bộ tức thì tới Bếp KDS"]
+
+    B -->|Mất kết nối Wi-Fi| F["Chuyển chế độ sang 🔴 Offline Mode"]
+    F --> G["Lưu đơn vào Dexie IndexedDB của trình duyệt<br/>- Mã tạm OFFLINE-timestamp<br/>- Trạng thái isSynced = false<br/>- Kèm Idempotency-Key"]
+    G --> H["Hiển thị hóa đơn tạm trên Tablet"]
+    H --> I["Hỗ trợ in hóa đơn dự phòng qua PDF Client-side"]
+
+    I --> J["📡 Trình duyệt bắt sự kiện: window.addEventListener('online')"]
+    J --> K["Thanh trạng thái chuyển: 🟡 Đang đồng bộ N đơn ngoại tuyến..."]
+    K --> L["OfflineManager duyệt hàng đợi trong IndexedDB"]
+    
+    L --> M{"Gửi đơn lên Server<br/>POST /api/orders"}
+    M -->|200 / 201 Thành Công| N["Cập nhật đơn: isSynced = true<br/>Xóa khỏi hàng đợi local"]
+    M -->|409 Conflict<br/>(Server đã nhận trước đó)| O["An toàn: Đánh dấu Đã đồng bộ<br/>Không báo lỗi, tránh trùng đơn"]
+    M -->|Lỗi mạng tiếp tục| P["Giữ lại trong IndexedDB<br/>Chờ lần kết nối tiếp theo"]
+
+    N --> Q["Thanh trạng thái chuyển: 🟢 Trực Tuyến (Đã đồng bộ toàn bộ)"]
+    O --> Q
+```
+
+---
+
+### 3.4. Sơ đồ 4: Chu Trình Màn Hình Bếp Pha Chế (Kitchen KDS Lifecycle)
+
+Mô tả vòng đời chuyển dịch trạng thái của món ăn/đồ uống tại màn hình quầy Bar/Bếp:
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: Đơn mới tạo từ POS (Thu ngân xác nhận)
+    
+    state PENDING {
+        [*] --> RingBell: Phát chuông Web Audio kép (587Hz -> 880Hz)
+        RingBell --> WaitMake: Hiển thị thẻ đơn viền Vàng Cam
+    }
+
+    PENDING --> MAKING: Pha chế bấm "Bắt đầu làm" (PATCH /api/kds)
+    
+    state MAKING {
+        [*] --> InProgress: Thẻ đơn đổi sang viền Xanh Dương
+        InProgress --> TimerCount: Đếm thời gian pha chế thực tế
+    }
+
+    MAKING --> DONE: Pha chế bấm "Hoàn thành" (PATCH /api/kds)
+    
+    state DONE {
+        [*] --> ReadyToServe: Thẻ đơn đổi sang viền Xanh Lá
+        ReadyToServe --> CallCustomer: Báo thu ngân / Gọi khách lấy đồ
+    }
+
+    DONE --> [*]: Đơn chuyển vào lịch sử hoàn tất
+```
+
+---
+
+### 3.5. Sơ đồ 5: Luồng Quản Lý Ca & Đối Soát Tiền Mặt (Shift Management & Cash Reconciliation)
+
+Mô tả chu trình mở ca, bán hàng, đóng ca và kiểm đếm tiền mặt đối soát chống thất thoát doanh thu:
+
+```mermaid
+flowchart LR
+    subgraph S1["1. BẮT ĐẦU CA (MỞ CA)"]
+        direction TB
+        A1["Thu ngân đăng nhập"] --> A2["Bấm 'Mở ca làm việc'"]
+        A2 --> A3["Nhập Tiền Mặt Đầu Ca<br/>(Opening Cash - vd: 1.000.000đ)"]
+        A3 --> A4["Hệ thống tạo bản ghi Shift: OPEN"]
+    end
+
+    subgraph S2["2. TRONG CA LÀM VIỆC"]
+        direction TB
+        B1["Bán hàng qua POS"] --> B2["Mỗi đơn tự động gắn với shiftId"]
+        B2 --> B3["Phân loại thanh toán:<br/>- Tiền mặt (Cash)<br/>- Chuyển khoản (VietQR)"]
+    end
+
+    subgraph S3["3. KẾT THÚC CA (ĐÓNG CA & ĐỐI SOÁT)"]
+        direction TB
+        C1["Thu ngân bấm 'Đóng ca'"] --> C2["Hệ thống tính Tiền Mặt Dự Kiến:<br/>= Tiền đầu ca + Doanh thu tiền mặt"]
+        C2 --> C3["Thu ngân đếm tiền trong két &<br/>nhập Tiền Thực Tế (Actual Cash)"]
+        C3 --> C4{"Hệ thống tính chênh lệch:<br/>Actual - Expected"}
+        C4 -->|Khớp = 0đ| D1["✅ Khớp ca hoàn hảo"]
+        C4 -->|Chênh lệch ≠ 0đ| D2["⚠️ Ghi nhận Thừa/Thiếu tiền"]
+        D1 --> E["In Báo Cáo Bàn Giao Ca 80mm & Đóng ca"]
+        D2 --> E
+    end
+
+    S1 --> S2 --> S3
+```
+
+---
+
+## 4. BÁO CÁO CHI TIẾT CÁC TẦNG NGHIỆP VỤ
 
 ### Tầng P0: Tính Năng Cốt Lõi & Bền Vững
 1. **Transaction & Counter sinh mã HD chống trùng**:
@@ -145,7 +388,7 @@ Hệ thống **POS Order** là giải pháp phần mềm quản lý bán hàng v
 
 ---
 
-## 4. BÁO CÁO KIỂM THỬ HỆ THỐNG (TESTING REPORT)
+## 5. BÁO CÁO KIỂM THỬ HỆ THỐNG (TESTING REPORT)
 
 Hệ thống được kiểm thử tự động toàn diện qua 12 bộ test suites với **tỷ lệ thành công 100%**:
 
@@ -181,7 +424,7 @@ Hệ thống được kiểm thử tự động toàn diện qua 12 bộ test su
 
 ---
 
-## 5. CẤU TRÚC THƯ MỤC DỰ ÁN
+## 6. CẤU TRÚC THƯ MỤC DỰ ÁN
 
 ```text
 POSorder/
@@ -220,7 +463,7 @@ POSorder/
 
 ---
 
-## 6. MÔI TRƯỜNG & TRIỂN KHAI PRODUCTION
+## 7. MÔI TRƯỜNG & TRIỂN KHAI PRODUCTION (DOCKER, CI/CD, BACKUP)
 
 1. **Next.js Standalone Build**:
    - `output: "standalone"` đóng gói mã nguồn độc lập, giảm thiểu dung lượng image Docker xuống dưới 150MB.
@@ -240,7 +483,7 @@ POSorder/
 
 ---
 
-## 7. HƯỚNG DẪN CÀI ĐẶT & KHỞI CHẠY NHANH
+## 8. HƯỚNG DẪN CÀI ĐẶT & KHỞI CHẠY NHANH
 
 ### Chạy Môi Trường Phát Triển (Development):
 ```bash
@@ -275,7 +518,7 @@ docker compose exec app npx tsx prisma/seed.ts
 ---
 ---
 
-## 8. HƯỚNG DẪN KHỞI CHẠY & CÁC LƯU Ý TRÁNH LỖI (TROUBLESHOOTING / FAQ)
+## 9. HƯỚNG DẪN KHỞI CHẠY & CÁC LƯU Ý TRÁNH LỖI (TROUBLESHOOTING / FAQ)
 
 Dưới đây là các lưu ý và giải pháp khắc phục các vấn đề thường gặp nhất giúp lập trình viên và người vận hành hệ thống không bị mắc lỗi khi khởi chạy:
 
