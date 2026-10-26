@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req?: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     // Lấy các đơn hàng đã thanh toán và chưa hoàn thành pha chế hết các món
     const activeOrders = await prisma.order.findMany({
