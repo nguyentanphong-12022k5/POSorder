@@ -200,10 +200,10 @@ Mô tả cơ chế hoạt động liên tục khi quán bị đứt mạng Inter
 
 ```mermaid
 flowchart TD
-    A["📱 Thu Ngân bấm Xác Nhận Đơn"] --> B{"🌐 Kiểm Tra Kết Nối Mạng<br/>(navigator.onLine)"}
+    A["📱 Thu Ngân bấm Xác Nhận Đơn"] --> B{"Kiểm Tra Kết Nối Mạng"}
 
     B -->|Đang Online| C["Gửi trực tiếp lên Server: POST /api/orders"]
-    C --> D["Database ghi nhận đơn & trả về mã HD"]
+    C --> D["Database ghi nhận đơn và trả về mã HD"]
     D --> E["In hóa đơn và đồng bộ tức thì tới Bếp KDS"]
 
     B -->|Mất kết nối Wi-Fi| F["Chuyển chế độ sang 🔴 Offline Mode"]
@@ -211,16 +211,16 @@ flowchart TD
     G --> H["Hiển thị hóa đơn tạm trên Tablet"]
     H --> I["Hỗ trợ in hóa đơn dự phòng qua PDF Client-side"]
 
-    I --> J["📡 Trình duyệt bắt sự kiện: window.addEventListener('online')"]
+    I --> J["Trình duyệt bắt sự kiện online trở lại"]
     J --> K["Thanh trạng thái chuyển: 🟡 Đang đồng bộ N đơn ngoại tuyến..."]
     K --> L["OfflineManager duyệt hàng đợi trong IndexedDB"]
     
-    L --> M{"Gửi đơn lên Server<br/>POST /api/orders"}
-    M -->|200 / 201 Thành Công| N["Cập nhật đơn: isSynced = true<br/>Xóa khỏi hàng đợi local"]
-    M -->|409 Conflict<br/>(Server đã nhận trước đó)| O["An toàn: Đánh dấu Đã đồng bộ<br/>Không báo lỗi, tránh trùng đơn"]
+    L --> M{"Gửi đơn lên Server: POST /api/orders"}
+    M -->|Mã 200 hoặc 201 Thành Công| N["Cập nhật đơn: isSynced = true<br/>Xóa khỏi hàng đợi local"]
+    M -->|Mã 409 Xung Đột - Đơn đã có trên server| O["An toàn: Đánh dấu Đã đồng bộ<br/>Không báo lỗi, tránh trùng đơn"]
     M -->|Lỗi mạng tiếp tục| P["Giữ lại trong IndexedDB<br/>Chờ lần kết nối tiếp theo"]
 
-    N --> Q["Thanh trạng thái chuyển: 🟢 Trực Tuyến (Đã đồng bộ toàn bộ)"]
+    N --> Q["Thanh trạng thái chuyển: 🟢 Trực Tuyến - Đã đồng bộ"]
     O --> Q
 ```
 
@@ -282,8 +282,8 @@ flowchart LR
         C1["Thu ngân bấm 'Đóng ca'"] --> C2["Hệ thống tính Tiền Mặt Dự Kiến:<br/>= Tiền đầu ca + Doanh thu tiền mặt"]
         C2 --> C3["Thu ngân đếm tiền trong két &<br/>nhập Tiền Thực Tế (Actual Cash)"]
         C3 --> C4{"Hệ thống tính chênh lệch:<br/>Actual - Expected"}
-        C4 -->|Khớp = 0đ| D1["✅ Khớp ca hoàn hảo"]
-        C4 -->|Chênh lệch ≠ 0đ| D2["⚠️ Ghi nhận Thừa/Thiếu tiền"]
+        C4 -->|Khớp chuẩn 0 đồng| D1["✅ Khớp ca hoàn hảo"]
+        C4 -->|Có chênh lệch tiền| D2["⚠️ Ghi nhận Thừa hoặc Thiếu tiền"]
         D1 --> E["In Báo Cáo Bàn Giao Ca 80mm & Đóng ca"]
         D2 --> E
     end
