@@ -1,0 +1,18 @@
+# ==============================================================================
+# CẤU HÌNH GITHUB LINGUIST (NGÔN NGỮ HIỂN THỊ TRÊN GITHUB)
+# ==============================================================================
+
+# 1. Kích hoạt nhận diện chi tiết các ngôn ngữ (tránh bị gom vào "Other")
+*.css linguist-detectable=true
+*.sh linguist-detectable=true
+Dockerfile linguist-detectable=true
+*.prisma linguist-detectable=true linguist-language=Prisma
+
+# 2. Đánh dấu các file sinh tự động (để không tính vào dòng code ngôn ngữ)
+package-lock.json linguist-generated=true
+public/manifest.json linguist-generated=true
+
+# 3. Đánh dấu tài nguyên tĩnh / assets là vendored
+public/fonts/* linguist-vendored=true
+public/icons/* linguist-vendored=true
+POSorder.txt linguist-documentation=true
