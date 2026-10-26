@@ -1,5 +1,20 @@
 # BÁO CÁO TOÀN DIỆN HỆ THỐNG POS ORDER ĐỒ UỐNG & MÀN HÌNH BẾP KDS
 
+<p align="center">
+  <a href="https://github.com/nguyentanphong-12022k5/POSorder/actions/workflows/ci-cd.yml">
+    <img src="https://github.com/nguyentanphong-12022k5/POSorder/actions/workflows/ci-cd.yml/badge.svg" alt="CI/CD Pipeline" />
+  </a>
+  <img src="https://img.shields.io/badge/Next.js-14.2-black?style=flat&logo=next.js" alt="Next.js 14" />
+  <img src="https://img.shields.io/badge/TypeScript-5.6_Strict-blue?style=flat&logo=typescript" alt="TypeScript Strict" />
+  <img src="https://img.shields.io/badge/Prisma-5.21-2D3748?style=flat&logo=prisma" alt="Prisma" />
+  <img src="https://img.shields.io/badge/Tests-98%20Passed-success?style=flat&logo=vitest" alt="Vitest Tests" />
+  <img src="https://img.shields.io/badge/Coverage-78%25-brightgreen?style=flat" alt="Coverage" />
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" />
+  </a>
+  <img src="https://img.shields.io/badge/PWA-Ready-orange?style=flat&logo=pwa" alt="PWA Ready" />
+</p>
+
 > **Dự án**: Hệ thống POS Bán Hàng, Quản Lý Ca, Tồn Kho, Màn Hình Pha Chế KDS & In Hóa Đơn Tự Động cho Ngành F&B (Trà & Cà Phê).  
 > **Phiên bản**: `1.0.0 (Production-Ready)`  
 > **Ngôn ngữ & Công nghệ**: Next.js 14 (App Router), TypeScript Strict, Prisma ORM, PostgreSQL / SQLite, TailwindCSS, Supabase Realtime, Vitest, Playwright, Docker Standalone.
