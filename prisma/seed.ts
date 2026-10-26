@@ -166,7 +166,12 @@ async function main() {
   // Khởi tạo tài khoản mẫu Admin và Staff
   await prisma.profile.upsert({
     where: { email: "admin@pos.vn" },
-    update: {},
+    update: {
+      password: "admin123",
+      role: "admin",
+      name: "Chủ quán Admin",
+      shopId: "shop_default",
+    },
     create: {
       email: "admin@pos.vn",
       password: "admin123",
@@ -178,7 +183,12 @@ async function main() {
 
   await prisma.profile.upsert({
     where: { email: "staff@pos.vn" },
-    update: {},
+    update: {
+      password: "staff123",
+      role: "staff",
+      name: "Thu ngân 1",
+      shopId: "shop_default",
+    },
     create: {
       email: "staff@pos.vn",
       password: "staff123",

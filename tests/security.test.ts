@@ -11,7 +11,12 @@ describe("Lớp Bảo Mật Hệ Thống - Auth, Rate Limit, Anti-IDOR", () => {
   beforeAll(async () => {
     await prisma.profile.upsert({
       where: { email: "admin@pos.vn" },
-      update: {},
+      update: {
+        password: "admin123",
+        role: "admin",
+        name: "Chủ quán Admin",
+        shopId: "shop_default",
+      },
       create: {
         email: "admin@pos.vn",
         password: "admin123",
@@ -22,7 +27,12 @@ describe("Lớp Bảo Mật Hệ Thống - Auth, Rate Limit, Anti-IDOR", () => {
     });
     await prisma.profile.upsert({
       where: { email: "staff@pos.vn" },
-      update: {},
+      update: {
+        password: "staff123",
+        role: "staff",
+        name: "Thu ngân 1",
+        shopId: "shop_default",
+      },
       create: {
         email: "staff@pos.vn",
         password: "staff123",
@@ -82,6 +92,18 @@ describe("Lớp Bảo Mật Hệ Thống - Auth, Rate Limit, Anti-IDOR", () => {
 
   // TEST 3: API ĐĂNG NHẬP VỚI PROFILE CSDL
   it("Đăng nhập thành công với admin@pos.vn / admin123", async () => {
+    await prisma.profile.upsert({
+      where: { email: "admin@pos.vn" },
+      update: { password: "admin123", role: "admin" },
+      create: {
+        email: "admin@pos.vn",
+        password: "admin123",
+        role: "admin",
+        name: "Chủ quán Admin",
+        shopId: "shop_default",
+      },
+    });
+
     const req = new NextRequest("http://localhost:3000/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
